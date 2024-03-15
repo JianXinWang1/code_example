@@ -32,59 +32,18 @@ def read_depth_confidence(img_wh):
     depth = np.concatenate(depth)
     confidence = np.concatenate(confidence)
     return depth, confidence
-
-
-def read_disp(filename):
-    # Scene Flow dataset
-    if filename.endswith('pfm'):
-        disp = np.ascontiguousarray(_read_pfm(filename)[0])
-    else:
-        raise Exception('Invalid disparity file format!')
-    return disp  # [H, W]
-
-def _read_pfm(file):
-    file = open(file, 'rb')
-    header = file.readline().rstrip()
-    if header.decode("ascii") == 'PF':
-        color = True
-    elif header.decode("ascii") == 'Pf':
-        color = False
-    else:
-        raise Exception('Not a PFM file.')
-
-    dim_match = re.match(r'^(\d+)\s(\d+)\s$', file.readline().decode("ascii"))
-    if dim_match:
-        width, height = list(map(int, dim_match.groups()))
-    else:
-        raise Exception('Malformed PFM header.')
-
-    scale = float(file.readline().decode("ascii").rstrip())
-    if scale < 0:
-        endian = '<'
-        scale = -scale
-    else:
-        endian = '>'
-
-    data = np.fromfile(file, endian + 'f')
-    shape = (height, width, 3) if color else (height, width)
-
-    data = np.reshape(data, shape)
-    data = np.flipud(data)
-    return data, scale
-
+    
 
 def center_poses(poses, pts3d=None):
     pose_avg = average_poses(poses, pts3d) # (3, 4)
     pose_avg_homo = np.eye(4)
-    pose_avg_homo[:3] = pose_avg # convert to homogeneous coordinate for faster computation
-                                 # by simply adding 0, 0, 0, 1 as the last row
+    pose_avg_homo[:3] = pose_avg 
     pose_avg_inv = np.linalg.inv(pose_avg_homo)
     last_row = np.tile(np.array([0, 0, 0, 1]), (len(poses), 1, 1)) # (N_images, 1, 4)
-    poses_homo = \
-        np.concatenate([poses, last_row], 1) # (N_images, 4, 4) homogeneous coordinate
+    poses_homo = np.concatenate([poses, last_row], 1) 
 
-    poses_centered = pose_avg_inv @ poses_homo # (N_images, 4, 4)
-    poses_centered = poses_centered[:, :3] # (N_images, 3, 4)
+    poses_centered = pose_avg_inv @ poses_homo 
+    poses_centered = poses_centered[:, :3] 
 
     if pts3d is not None:
         pts3d_centered = pts3d @ pose_avg_inv[:, :3].T + pose_avg_inv[:, 3:].T
@@ -99,7 +58,7 @@ def normalize(v):
 
 
 def average_poses(poses, pts3d=None):
-    # 1. Compute the center
+
     center = poses[..., 3].mean(0)
     z = normalize(poses[..., 2].mean(0))
 
@@ -109,22 +68,22 @@ def average_poses(poses, pts3d=None):
 
     y = np.cross(z, x)
 
-    pose_avg = np.stack([x, y, z, center], 1)  # (3, 4)
+    pose_avg = np.stack([x, y, z, center], 1)  
 
     return pose_avg
 
 
 def read_image(img_path, img_wh, blend_a=True):
     img = imageio.imread(img_path).astype(np.float32)/255.0
-    # img[..., :3] = srgb_to_linear(img[..., :3])
-    if img.shape[2] == 4: # blend A to RGB
+
+    if img.shape[2] == 4: 
         if blend_a:
             img = img[..., :3]*img[..., -1:]+(1-img[..., -1:])
         else:
             img = img[..., :3]*img[..., -1:]
 
     img = cv2.resize(img, img_wh)
-    # img = img[0:-1:4,0:-1:4,:]
+
     img = rearrange(img, 'h w c -> (h w) c')
     return img
 
